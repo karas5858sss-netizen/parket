@@ -1050,6 +1050,9 @@ const SYNC_URL = 'https://project-a2kdz.vercel.app/api/shedule';
 const SYNC_TTL = 6 * 60 * 60 * 1000;
 
 async function syncFromServer(force) {
+  allSess().filter(s => !s.done && daysDiff(s.date) < 0).forEach(s => {
+  gf(s.id).done = true;
+});
   var lastSync = parseInt(localStorage.getItem('srv_sync_ts') || '0');
   if (!force && Date.now() - lastSync < SYNC_TTL) return;
   showSync('saving', '🔄 Загрузка расписания МАИ...');
