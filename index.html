@@ -1055,7 +1055,7 @@ async function syncFromServer(force) {
 });
   var lastSync = parseInt(localStorage.getItem('srv_sync_ts') || '0');
   if (!force && Date.now() - lastSync < SYNC_TTL) return;
-  showSync('saving', '🔄 Загрузка расписания МАИ...');
+  showSync('saving', '🔄 Загрузка расписания РФ МГТУ ГА...');
   try {
     var res = await fetch(SYNC_URL);
     var data = await res.json();
