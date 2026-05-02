@@ -1,0 +1,5 @@
+{
+  "functions": {
+    "api/schedule.js": { "maxDuration": 30 }
+  }
+}
