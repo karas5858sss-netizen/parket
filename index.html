@@ -1037,8 +1037,7 @@ async function syncFromServer(force) {
   try {
     var res = await fetch(SYNC_URL);
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    var data = await res.json();
-    if (!data.ok || !data.lessons) throw new Error(data.error || 'empty');
+
 
     // Строим Set серверных ID
     var serverIds = new Set(data.lessons.map(function(l){ return l.id; }));
