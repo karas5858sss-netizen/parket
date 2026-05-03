@@ -1,4 +1,3 @@
-cat > /mnt/user-data/outputs/schedule.js << 'EOF'
 const BASE = 'http://94.180.56.248:8080/api';
 let cachedToken = null;
 let tokenExpiry = 0;
@@ -26,17 +25,13 @@ async function getToken() {
   return token;
 }
 
-async function fetchWeekSafe(token, sdate) {
-  try {
-    const res = await fetch(BASE + '/Rasp?idGroup=271&sdate=' + sdate, {
-      headers: { 'Accept': 'application/json', 'Authorization': 'Bearer ' + token }
-    });
-    if (!res.ok) return [];
-    const json = await res.json();
-    return (json.data && json.data.rasp) || [];
-  } catch (e) {
-    return [];
-  }
+async function fetchWeek(token, sdate) {
+  const res = await fetch(BASE + '/Rasp?idGroup=271&sdate=' + sdate, {
+    headers: { 'Accept': 'application/json', 'Authorization': 'Bearer ' + token }
+  });
+  if (!res.ok) throw new Error('Rasp HTTP ' + res.status);
+  const json = await res.json();
+  return (json.data && json.data.rasp) || [];
 }
 
 function getMondays() {
@@ -45,11 +40,8 @@ function getMondays() {
   const dow = d.getDay();
   d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
   d.setHours(0, 0, 0, 0);
-  const end = new Date('2026-08-01'); // конец семестра с запасом
-  while (d <= end) {
-    list.push(d.toISOString().split('T')[0]);
-    d.setDate(d.getDate() + 7);
-  }
+  const end = new Date('2026-06-21');
+  while (d <= end) { list.push(d.toISOString().split('T')[0]); d.setDate(d.getDate() + 7); }
   return list;
 }
 
@@ -67,14 +59,16 @@ module.exports = async (req, res) => {
   try {
     const token = await getToken();
     const mondays = getMondays();
-
-    // Все недели параллельно — быстрее всего, укладывается в лимит Vercel
-    const results = await Promise.all(mondays.map(w => fetchWeekSafe(token, w)));
-
     const allLessons = [], seen = new Set();
-    for (const arr of results) {
-      for (const l of arr) {
-        if (!seen.has(l['код'])) { seen.add(l['код']); allLessons.push(l); }
+
+    for (let i = 0; i < mondays.length; i += 5) {
+      const results = await Promise.allSettled(mondays.slice(i, i+5).map(w => fetchWeek(token, w)));
+      for (const r of results) {
+        if (r.status === 'fulfilled') {
+          for (const l of r.value) {
+            if (!seen.has(l['код'])) { seen.add(l['код']); allLessons.push(l); }
+          }
+        }
       }
     }
 
@@ -97,6 +91,3 @@ module.exports = async (req, res) => {
     res.status(500).json({ ok: false, error: err.message });
   }
 };
-EOF
-echo "SYNTAX: $(node --check /mnt/user-data/outputs/schedule.js 2>&1 || echo 'ERROR')"
-echo "Lines: $(wc -l < /mnt/user-data/outputs/schedule.js)"
