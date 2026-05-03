@@ -935,8 +935,7 @@ function renderStats(){
   const sess=allSess(),subjs=allSubjs();
   const totalAll=sess.reduce((a,s)=>a+s.pairs,0),totalDone=sess.filter(s=>s.done).reduce((a,s)=>a+s.pairs,0),totalRem=totalAll-totalDone;
   const hwTotal=sess.filter(s=>s.hw&&!s.done).length,hwDone=sess.filter(s=>s.hw&&s.done).length;
-  const today=new Date(),var end = new Date();
-end.setMonth(end.getMonth() + 3);,daysLeft=Math.max(0,Math.round((semEnd-today)/86400000));
+  const today=new Date(),semEnd=new Date('2026-06-21');,daysLeft=Math.max(0,Math.round((semEnd-today)/86400000));
   const ov=document.createElement('div');ov.className='stats-card';
   ov.innerHTML=`<div class="stats-card-title">Обзор семестра</div><div class="num-grid"><div class="num-cell"><div class="n" style="color:var(--acc)">${totalRem}</div><div class="l">Осталось</div></div><div class="num-cell"><div class="n" style="color:var(--grn)">${totalDone}</div><div class="l">Прошло</div></div><div class="num-cell"><div class="n" style="color:var(--yel)">${daysLeft}</div><div class="l">Дней</div></div></div><div style="margin-top:10px;font-size:8px;color:var(--tdim)">Прогресс</div><div style="height:7px;background:var(--sur2);border-radius:3px;margin-top:3px;overflow:hidden"><div style="height:100%;width:${Math.round(totalDone/Math.max(1,totalAll)*100)}%;background:var(--acc);border-radius:3px;transition:width .5s"></div></div><div style="font-size:8px;color:var(--tdim);margin-top:2px">${Math.round(totalDone/Math.max(1,totalAll)*100)}% пар пройдено</div>`;
   wrap.appendChild(ov);
@@ -1037,7 +1036,8 @@ async function syncFromServer(force) {
   try {
     var res = await fetch(SYNC_URL);
     if (!res.ok) throw new Error('HTTP ' + res.status);
-
+var data = await res.json();
+    if (!data.ok || !data.lessons) throw new Error(data.error || 'empty');
 
     // Строим Set серверных ID
     var serverIds = new Set(data.lessons.map(function(l){ return l.id; }));
