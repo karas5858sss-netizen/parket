@@ -82,7 +82,7 @@ jobs:
             const first = today[0];
             const firstStart = t2m(first.ts);
             const diffFirst = firstStart - nowMin;
-            if (diffFirst >= 55 && diffFirst <= 65) {
+            if (diffFirst >= 0 && diffFirst <= 999) {
               const msg =
                 '🔔 <b>Первая пара через час!</b>\n\n' +
                 '📚 ' + first.name + '\n' +
