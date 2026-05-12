@@ -883,7 +883,7 @@ function updateBanner(sess,subjs) {
 // ═══════════════════════════════════════════════════════
 //  INTERACTIONS
 // ═══════════════════════════════════════════════════════
-function toggleCard(id) {openCards[id]=!openCards[id];document.querySelector(`[data-id="${id}"] .cheader`)?.classList.toggle('open',openCards[id]);document.getElementById('sw_'+id)?.classList.toggle('open',openCards[id]);haptic('select');saveOpenCards();}
+function toggleCard(id) {openCards[id]=!openCards[id];document.querySelector(`[data-id="${id}"] .cheader`)?.classList.toggle('open',openCards[id]);document.getElementById('sw_'+id)?.classList.toggle('open',openCards[id]);haptic('select');}
 function toggleHw(subjId,sessId,btn) { haptic('light');
   const f=gf(sessId);f.hw=!f.hw;save();
   btn.classList.toggle('on',f.hw);btn.textContent=f.hw?'📋 ДЗ':'ДЗ?';
@@ -1289,16 +1289,6 @@ function haptic(type) {
 
 
 // ═══ ЗАПОМИНАНИЕ ОТКРЫТЫХ КАРТОЧЕК ══════════════════
-function saveOpenCards() {
-  const open = Object.keys(openCards).filter(k => openCards[k]);
-  localStorage.setItem('parket_open_cards', JSON.stringify(open));
-}
-function loadOpenCards() {
-  try {
-    const saved = JSON.parse(localStorage.getItem('parket_open_cards') || '[]');
-    saved.forEach(id => { openCards[id] = true; });
-  } catch(e) {}
-}
 
 // ═══ PULL TO REFRESH ═════════════════════════════════
 (function setupPTR() {
@@ -1363,7 +1353,6 @@ async function init() {
   document.getElementById('app').style.display = '';
 
   // Восстанавливаем открытые карточки
-  loadOpenCards();
   // Открываем карточки с парами сегодня
   allSess().forEach(s=>{if(!s.done&&daysDiff(s.date)===0)openCards[s.subj]=true;});
 
