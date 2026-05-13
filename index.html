@@ -1,4 +1,3 @@
-
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
@@ -320,9 +319,53 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;background:li
 }
 @keyframes urgentPulse{0%,100%{opacity:1;}50%{opacity:.6;}}
 
+
+/* SYNC PROGRESS BAR */
+.sync-progress {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  z-index: 999;
+  background: transparent;
+  pointer-events: none;
+}
+.sync-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--acc), #ff6b9d, var(--acc));
+  background-size: 200% 100%;
+  width: 0%;
+  transition: width .4s ease;
+  animation: none;
+}
+.sync-progress-fill.running {
+  width: 85%;
+  animation: syncShimmer 1.2s ease infinite;
+}
+.sync-progress-fill.done {
+  width: 100%;
+  transition: width .2s ease;
+}
+@keyframes syncShimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+/* Обновляем sync-badge чтобы был заметнее */
+.sync-badge {
+  font-size: 9px; padding: 4px 10px; border-radius: 10px;
+  font-family: 'JetBrains Mono', monospace, sans-serif;
+  font-weight: 700; letter-spacing: .5px;
+  opacity: 0; transition: opacity .3s;
+  white-space: nowrap;
+}
+.sync-badge.vis { opacity: 1; }
+.sync-badge.ok      { background: rgba(76,175,80,.15);  color: #4CAF50; border: 1px solid rgba(76,175,80,.3); }
+.sync-badge.saving  { background: rgba(192,48,96,.15);  color: var(--acc); border: 1px solid rgba(192,48,96,.3); }
+.sync-badge.err     { background: rgba(239,83,80,.15);  color: #EF5350; border: 1px solid rgba(239,83,80,.3); }
+
 </style>
 </head>
 <body>
+<div class="sync-progress"><div class="sync-progress-fill" id="sync-fill"></div></div>
 
 <!-- LOADING -->
 <div id="loading">
@@ -605,10 +648,35 @@ async function loadState() {
 
 function showSync(type, msg) {
   const el = document.getElementById('sync-badge');
+  const fill = document.getElementById('sync-fill');
   el.textContent = msg;
   el.className = 'sync-badge vis ' + type;
   clearTimeout(el._t);
-  el._t = setTimeout(() => el.classList.remove('vis'), 2500);
+
+  if (fill) {
+    if (type === 'saving') {
+      // Запускаем анимацию прогресс-бара
+      fill.style.transition = 'none';
+      fill.style.width = '0%';
+      fill.classList.remove('done');
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        fill.classList.add('running');
+      }));
+    } else {
+      // Синхронизация завершена — докатываем до 100% и скрываем
+      fill.classList.remove('running');
+      fill.classList.add('done');
+      setTimeout(() => {
+        fill.style.transition = 'width .5s ease';
+        fill.style.width = '0%';
+        fill.classList.remove('done');
+      }, 600);
+    }
+  }
+
+  if (type !== 'saving') {
+    el._t = setTimeout(() => el.classList.remove('vis'), 3000);
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -883,7 +951,7 @@ function updateBanner(sess,subjs) {
 // ═══════════════════════════════════════════════════════
 //  INTERACTIONS
 // ═══════════════════════════════════════════════════════
-function toggleCard(id) {openCards[id]=!openCards[id];document.querySelector(`[data-id="${id}"] .cheader`)?.classList.toggle('open',openCards[id]);document.getElementById('sw_'+id)?.classList.toggle('open',openCards[id]);haptic('select');saveOpenCards();}
+function toggleCard(id) {openCards[id]=!openCards[id];document.querySelector(`[data-id="${id}"] .cheader`)?.classList.toggle('open',openCards[id]);document.getElementById('sw_'+id)?.classList.toggle('open',openCards[id]);haptic('select');}
 function toggleHw(subjId,sessId,btn) { haptic('light');
   const f=gf(sessId);f.hw=!f.hw;save();
   btn.classList.toggle('on',f.hw);btn.textContent=f.hw?'📋 ДЗ':'ДЗ?';
@@ -1288,17 +1356,7 @@ function haptic(type) {
 }
 
 
-// ═══ ЗАПОМИНАНИЕ ОТКРЫТЫХ КАРТОЧЕК ══════════════════
-function saveOpenCards() {
-  const open = Object.keys(openCards).filter(k => openCards[k]);
-  localStorage.setItem('parket_open_cards', JSON.stringify(open));
-}
-function loadOpenCards() {
-  try {
-    const saved = JSON.parse(localStorage.getItem('parket_open_cards') || '[]');
-    saved.forEach(id => { openCards[id] = true; });
-  } catch(e) {}
-}
+
 
 // ═══ PULL TO REFRESH ═════════════════════════════════
 (function setupPTR() {
@@ -1362,8 +1420,6 @@ async function init() {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = '';
 
-  // Восстанавливаем открытые карточки
-  loadOpenCards();
   // Открываем карточки с парами сегодня
   allSess().forEach(s=>{if(!s.done&&daysDiff(s.date)===0)openCards[s.subj]=true;});
 
@@ -1381,4 +1437,4 @@ async function init() {
 init();
 </script>
 </body>
-</html>""" 
+</html>"""
