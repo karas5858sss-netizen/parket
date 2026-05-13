@@ -1,4 +1,3 @@
-
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
@@ -1288,7 +1287,7 @@ function haptic(type) {
 }
 
 
-// ═══ ЗАПОМИНАНИЕ ОТКРЫТЫХ КАРТОЧЕК ══════════════════
+
 
 // ═══ PULL TO REFRESH ═════════════════════════════════
 (function setupPTR() {
@@ -1352,7 +1351,6 @@ async function init() {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = '';
 
-  // Восстанавливаем открытые карточки
   // Открываем карточки с парами сегодня
   allSess().forEach(s=>{if(!s.done&&daysDiff(s.date)===0)openCards[s.subj]=true;});
 
@@ -1370,4 +1368,4 @@ async function init() {
 init();
 </script>
 </body>
-</html>""" 
+</html>"""
