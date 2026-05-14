@@ -2,10 +2,8 @@ name: Parket Notifications
 
 on:
   schedule:
-    # Каждые 10 минут с 6:00 до 20:00 МСК (UTC+3 = UTC-3)
-    # GitHub Actions работает в UTC, МСК = UTC+3
-    - cron: '0,10,20,30,40,50 3-17 * * 1-6'  # пн-сб, 06:00-20:00 МСК
-  workflow_dispatch: # ручной запуск для теста
+    - cron: '0,10,20,30,40,50 3-17 * * 1-6'
+  workflow_dispatch:
 
 jobs:
   notify:
@@ -20,6 +18,22 @@ jobs:
         run: |
           node -e "
           const https = require('https');
+          const fs    = require('fs');
+
+          // Файл для хранения уже отправленных уведомлений сегодня
+          // (чтобы не дублировать при повторном запуске в том же окне)
+          const SENT_FILE = '/tmp/parket_sent.json';
+          function loadSent() {
+            try { return JSON.parse(fs.readFileSync(SENT_FILE,'utf8')); } catch { return {}; }
+          }
+          function markSent(key) {
+            const s = loadSent(); s[key] = Date.now();
+            fs.writeFileSync(SENT_FILE, JSON.stringify(s));
+          }
+          function wasSent(key, withinMs) {
+            const s = loadSent();
+            return s[key] && (Date.now() - s[key]) < withinMs;
+          }
 
           function get(url) {
             return new Promise((res, rej) => {
@@ -41,16 +55,11 @@ jobs:
                 headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
               }, r => { let d=''; r.on('data',c=>d+=c); r.on('end',()=>res(JSON.parse(d))); });
               req.on('error', rej);
-              req.write(body);
-              req.end();
+              req.write(body); req.end();
             });
           }
 
-          function pad(n) { return String(n).padStart(2,'0'); }
-
           function t2m(t) { const[h,m]=t.split(':').map(Number); return h*60+m; }
-
-          const DOW = ['вс','пн','вт','ср','чт','пт','сб'];
 
           async function main() {
             const token   = process.env.TG_TOKEN;
@@ -58,71 +67,76 @@ jobs:
             const groupId = process.env.GROUP_ID;
             const url     = process.env.VERCEL_URL + '?groupId=' + groupId;
 
-            // Текущее московское время (UTC+3)
-            const nowUTC  = new Date();
-            const nowMSK  = new Date(nowUTC.getTime() + 3*60*60*1000);
+            const nowUTC = new Date();
+            const nowMSK = new Date(nowUTC.getTime() + 3*60*60*1000);
             const todayStr = nowMSK.toISOString().split('T')[0];
-            const nowMin  = nowMSK.getUTCHours()*60 + nowMSK.getUTCMinutes();
-            const hh = pad(nowMSK.getUTCHours());
-            const mm = pad(nowMSK.getUTCMinutes());
+            const nowMin = nowMSK.getUTCHours()*60 + nowMSK.getUTCMinutes();
+            const hh = String(nowMSK.getUTCHours()).padStart(2,'0');
+            const mm = String(nowMSK.getUTCMinutes()).padStart(2,'0');
 
             console.log('МСК время:', hh+':'+mm, '| Дата:', todayStr);
 
             const data = await get(url);
             if (!data.ok || !data.lessons) { console.log('API error'); return; }
 
-            // Пары сегодня, сортированные по времени
             const today = data.lessons
               .filter(l => l.date === todayStr)
               .sort((a,b) => t2m(a.ts) - t2m(b.ts));
 
-            if (today.length === 0) { console.log('Сегодня пар нет'); return; }
+            if (!today.length) { console.log('Сегодня пар нет'); return; }
 
-            // ── Уведомление за 60 мин до ПЕРВОЙ пары ──────────────────
+            // ── За 60 мин до ПЕРВОЙ пары ──────────────────────────────
+            // Окно 40-75 мин — перекрывает возможную задержку GitHub
             const first = today[0];
-            const firstStart = t2m(first.ts);
-            const diffFirst = firstStart - nowMin;
-            if (diffFirst >= 55 && diffFirst <= 65) {
+            const diffFirst = t2m(first.ts) - nowMin;
+            const keyFirst = todayStr + '_first_' + first.ts;
+
+            if (diffFirst >= 40 && diffFirst <= 75 && !wasSent(keyFirst, 50*60*1000)) {
               const msg =
-                '🔔 <b>Первая пара через час!</b>\n\n' +
+                '🔔 <b>Первая пара через ~' + diffFirst + ' мин!</b>\n\n' +
                 '📚 ' + first.name + '\n' +
                 '🕐 ' + first.ts + ' – ' + first.te + '\n' +
                 '🏫 Ауд. ' + first.room + '\n' +
                 '👤 ' + first.teacher;
               await sendMsg(token, chatId, msg);
-              console.log('Отправлено: первая пара через час');
+              markSent(keyFirst, 50*60*1000);
+              console.log('Отправлено: первая пара через', diffFirst, 'мин');
               return;
             }
 
-            // ── Уведомление за 10 мин до КАЖДОЙ пары ──────────────────
+            // ── За 10 мин до КАЖДОЙ пары ──────────────────────────────
+            // Окно 5-20 мин
             for (const l of today) {
               const diff = t2m(l.ts) - nowMin;
-              if (diff >= 8 && diff <= 12) {
+              const key = todayStr + '_before_' + l.ts;
+              if (diff >= 5 && diff <= 20 && !wasSent(key, 15*60*1000)) {
                 const isFirst = l === today[0];
                 const msg =
-                  (isFirst ? '⚡ <b>Первая пара через 10 минут!</b>' : '⚡ <b>Следующая пара через 10 минут!</b>') + '\n\n' +
+                  (isFirst ? '⚡ <b>Первая пара через ~' : '⚡ <b>Следующая пара через ~') + diff + ' мин!</b>\n\n' +
                   '📚 ' + l.name + '\n' +
                   '🕐 ' + l.ts + ' – ' + l.te + '\n' +
                   '🏫 Ауд. ' + l.room + '\n' +
                   '👤 ' + l.teacher;
                 await sendMsg(token, chatId, msg);
-                console.log('Отправлено: пара через 10 мин', l.ts);
+                markSent(key, 15*60*1000);
+                console.log('Отправлено: пара через', diff, 'мин', l.ts);
                 return;
               }
             }
 
             // ── Напоминание о ДЗ в 16:00 ──────────────────────────────
-            if (nowMin >= 960 && nowMin <= 970) { // 16:00–16:10 МСК
-              // ДЗ берём из отдельного хранилища — но у нас оно в TG Cloud
-              // Поэтому просто напоминаем проверить приложение
+            // Окно 15:50-16:20
+            const keyDZ = todayStr + '_dz';
+            if (nowMin >= 950 && nowMin <= 980 && !wasSent(keyDZ, 2*60*60*1000)) {
               const lastLesson = today[today.length-1];
-              const lastEnd = t2m(lastLesson.te);
-              if (nowMin > lastEnd) { // все пары уже прошли
+              if (nowMin > t2m(lastLesson.te)) {
+                const cnt = today.length;
                 const msg =
-                  '📋 <b>Напоминание о домашних заданиях</b>\n\n' +
-                  'Сегодня было ' + today.length + ' пар' + (today.length===1?'а':today.length<5?'ы':'') + '. ' +
-                  'Проверь, не осталось ли невыполненных ДЗ в ПАР·КЕТ 👇';
+                  '📋 <b>Напоминание о ДЗ</b>\n\n' +
+                  'Сегодня было ' + cnt + ' пар' + (cnt===1?'а':cnt<5?'ы':'') + '.\n' +
+                  'Проверь невыполненные ДЗ в ПАР·КЕТ 👇';
                 await sendMsg(token, chatId, msg);
+                markSent(keyDZ, 2*60*60*1000);
                 console.log('Отправлено: напоминание о ДЗ');
                 return;
               }
