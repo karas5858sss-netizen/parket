@@ -67,10 +67,10 @@ module.exports = async (req, res) => {
     queryParam = 'idGroup=' + req.query.groupId;
     mode = 'group';
   } else if (req.query.teacherId && ALLOWED_TEACHERS.has(req.query.teacherId)) {
-    queryParam = 'idPrepod=' + req.query.teacherId;
+    queryParam = 'idTeacher=' + req.query.teacherId;
     mode = 'teacher';
   } else if (req.query.audId && ALLOWED_AUDS.has(req.query.audId)) {
-    queryParam = 'idAud=' + req.query.audId;
+    queryParam = 'idAudLine=' + req.query.audId;
     mode = 'aud';
   } else {
     // По умолчанию — группа 271
