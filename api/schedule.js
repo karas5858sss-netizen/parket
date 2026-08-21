@@ -39,9 +39,13 @@ async function getCurrentYear(token) {
   const res = await fetch(BASE + '/ListYears', {
     headers: { 'Accept': 'application/json', 'Authorization': 'Bearer ' + token }
   });
-  const json = await res.json();
+  const text = await res.text();
+  let json;
+  try { json = JSON.parse(text); } catch { throw new Error(`ListYears: не JSON, статус ${res.status}: ${text.slice(0, 200)}`); }
   const years = json.data && json.data.years;
-  if (!Array.isArray(years) || !years.length) throw new Error('ListYears: пустой ответ');
+  if (!Array.isArray(years) || !years.length) {
+    throw new Error(`ListYears: неожиданный ответ, статус ${res.status}: ${text.slice(0, 200)}`);
+  }
   cachedYears = years;
   yearsExpiry = Date.now() + CACHE_TTL;
   return years[years.length - 1];
@@ -53,8 +57,10 @@ async function getGroupList(token, year) {
   const res = await fetch(`${BASE}/raspGrouplist?year=${year}`, {
     headers: { 'Accept': 'application/json', 'Authorization': 'Bearer ' + token }
   });
-  const json = await res.json();
-  if (!Array.isArray(json.data)) throw new Error('raspGrouplist: пустой ответ');
+  const text = await res.text();
+  let json;
+  try { json = JSON.parse(text); } catch { throw new Error(`raspGrouplist: не JSON, статус ${res.status}: ${text.slice(0, 200)}`); }
+  if (!Array.isArray(json.data)) throw new Error(`raspGrouplist: неожиданный ответ, статус ${res.status}: ${text.slice(0, 200)}`);
   cachedGroups = json.data;
   cachedGroupsYear = year;
   groupsExpiry = Date.now() + CACHE_TTL;
